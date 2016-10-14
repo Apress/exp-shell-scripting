@@ -1,0 +1,242 @@
+#!/bin/sh
+
+#
+# Build a mirrored copy of a system while accounting for possible
+# drive hardware changes from the original.
+#
+
+# How big is the disk and set up some variables
+#  sfdisk -l /dev/hda
+
+bytes_per_cyl=`sfdisk -l /dev/hda | grep Units | awk '{print $5}'`
+#echo bytes_per_cyl $bytes_per_cyl
+
+cyl_count=`sfdisk -l /dev/hda | grep Disk | awk '{print $3}'`
+#echo cyl_count $cyl_count
+
+heads=`sfdisk -l /dev/hda | grep Disk | awk '{print $5}'`
+tracks_per_cyl=$heads
+#echo tracks_per_cyl $tracks_per_cyl
+
+sectors_per_track=`sfdisk -l /dev/hda | grep Disk | awk '{print $7}'`
+#echo sectors_per_track $sectors_per_track
+
+sectors_per_cyl=$(($tracks_per_cyl*$sectors_per_track))
+#echo sectors_per_cyl $sectors_per_cyl
+
+bytes_per_sector=$(($bytes_per_cyl/$sectors_per_cyl))
+#echo bytes_per_sector $bytes_per_sector
+
+usable_cyl=$(($cyl_count-4))
+disk_in_sectors=$(($sectors_per_cyl*$usable_cyl))
+disk_in_sectors=$(($disk_in_sectors-$sectors_per_track))
+#echo disk_in_sectors $disk_in_sectors
+
+mem_in_bytes=`cat /proc/meminfo | grep MemTotal: | awk '{print $2}'`
+swap_in_bytes=$(($mem_in_bytes*2))
+#echo swap_in_bytes $mem_in_bytes
+
+#
+# Setting up slice sizes in sectors for sfdisk input file.
+#
+
+#echo disk in sectors $disk_in_sectors
+
+#
+# sector_calc: function to calculate the correct number of sectors for
+#              a slice which land on cylinder boundaries.
+#              usage: sector_calc {slice size in bytes}
+#
+
+sector_calc () {
+
+size=$1
+
+slice_in_sectors=$(($size/$bytes_per_sector))
+slice_in_cyl=$(($slice_in_sectors/$sectors_per_cyl))
+slice_rem=$(($size%$bytes_per_sector))
+if [ $slice_rem -ne 0 ]
+then
+  #
+  # Always rounding up to next even cylinder
+  #
+  slice_in_cyl=$(($slice_in_cyl+1))
+  slice_in_sectors=$(($slice_in_cyl*$sectors_per_cyl))
+  slice_in_sectors=$(($slice_in_sectors-$sectors_per_track))
+else
+  slice_in_sectors=$(($slice_in_cyl*$sectors_per_cyl))
+  slice_in_sectors=$(($slice_in_sectors-$sectors_per_track))
+fi
+
+}
+
+#
+# Get the sizes in sectors for each slice
+#
+
+# Swap
+sector_calc $swap_in_bytes
+swap_in_sectors=$slice_in_sectors
+#echo swap_in_sectors $swap_in_sectors
+#echo swap in cylinders is `expr $swap_in_sectors \/ $sectors_per_cyl`
+
+# Root /
+sector_calc 250000000
+root_in_sectors=$slice_in_sectors
+#echo root_in_sectors $root_in_sectors
+#echo root in cylinders is `expr $root_in_sectors \/ $sectors_per_cyl`
+
+# /boot
+sector_calc 30000000
+boot_in_sectors=$slice_in_sectors
+#echo boot_in_sectors $boot_in_sectors
+#echo boot in cylinders is `expr $boot_in_sectors \/ $sectors_per_cyl`
+
+# /var
+sector_calc 1000000000
+var_in_sectors=$slice_in_sectors
+#echo var_in_sectors $var_in_sectors
+#echo var in cylinders is `expr $var_in_sectors \/ $sectors_per_cyl`
+
+# /home
+sector_calc 512000000
+home_in_sectors=$slice_in_sectors
+#echo home_in_sectors $home_in_sectors
+#echo home in cylinders is `expr $home_in_sectors \/ $sectors_per_cyl`
+
+# /tmp
+sector_calc 512000000
+tmp_in_sectors=$slice_in_sectors
+#echo tmp_in_sectors $tmp_in_sectors
+#echo tmp in cylinders is `expr $tmp_in_sectors \/ $sectors_per_cyl`
+
+#
+# Since /usr and /usr/local are evenly using up the rest of the disk,
+# get their sector sizes.  Rounding up in the function above isn't an issue
+# because these slices are just taking what is left over.
+#
+# /usr
+rest_of_disk_in_sectors=$(($disk_in_sectors-$swap_in_sectors-$boot_in_sectors-$root_in_sectors-$var_in_sectors-$home_in_sectors-$tmp_in_sectors))
+usr_in_sectors=$(($rest_of_disk_in_sectors/2/$sectors_per_cyl*$sectors_per_cyl))
+#echo usr_in_sectors $usr_in_sectors
+#echo usr in cylinders is `expr $usr_in_sectors \/ $sectors_per_cyl`
+
+# /usr/local should be the same size as /usr
+usrlocal_in_sectors=$usr_in_sectors
+#echo usrlocal_in_sectors $usrlocal_in_sectors
+#echo usrlocal in cylinders is `expr $usr_in_sectors \/ $sectors_per_cyl`
+
+#
+# Set up start positions...
+#
+
+#
+# Define the partition table temporary file and write it out.  This is based
+# on reproducing the output from sfdisk -d /dev/hda.  The start position is
+# what gets kinda sticky because of adding the previous slice sizes.
+#
+
+PARTTAB=/tmp/parts.out
+double_sectors_per_track=$((2*$sectors_per_track))
+
+cat > $PARTTAB <<SOMETAG
+# partition table of /dev/hda
+unit: sectors
+
+/dev/hda1  : start=$sectors_per_track,size=$boot_in_sectors,Id=83,bootable
+/dev/hda2  : start=$(($sectors_per_track+$boot_in_sectors)),size=$(($disk_in_sectors-$boot_in_sectors)),Id=5
+/dev/hda3  : start=0,size=0,Id=0
+/dev/hda4  : start=0,size=0,Id=0
+/dev/hda5  : start=$(($double_sectors_per_track+$boot_in_sectors)),size=$usr_in_sectors,Id=83
+/dev/hda6  : start=$(($double_sectors_per_track+$boot_in_sectors+$usr_in_sectors)),size=$usrlocal_in_sectors,Id=83
+/dev/hda7  : start=$(($double_sectors_per_track+$boot_in_sectors+$usr_in_sectors+$usrlocal_in_sectors)),size=$var_in_sectors,Id=83
+/dev/hda8  : start=$(($double_sectors_per_track+$boot_in_sectors+$usr_in_sectors+$usrlocal_in_sectors+$var_in_sectors)),size=$home_in_sectors,Id=83
+/dev/hda9  : start=$(($double_sectors_per_track+$boot_in_sectors+$usr_in_sectors+$usrlocal_in_sectors+$var_in_sectors+$home_in_sectors)),size=$tmp_in_sectors,Id=83
+/dev/hda10 : start=$(($double_sectors_per_track+$boot_in_sectors+$usr_in_sectors+$usrlocal_in_sectors+$var_in_sectors+$home_in_sectors+$tmp_in_sectors)),size=$swap_in_sectors,Id=82
+/dev/hda11 : start=$(($double_sectors_per_track+$boot_in_sectors+$usr_in_sectors+$usrlocal_in_sectors+$var_in_sectors+$home_in_sectors+$tmp_in_sectors+$swap_in_sectors)),size=$root_in_sectors,Id=83
+SOMETAG
+
+#
+# Install $PARTTAB into the disk
+#
+
+#sfdisk -f /dev/hda < $PARTTAB
+
+#
+# Make the ext2 filesystems on each slice
+#
+
+#for slice in 1 5 6 7 8 9 11
+#do
+#  echo Making filesystem on slice $slice...
+#  mke2fs /dev/hda$slice
+#done
+
+#
+# Making the temporary root dir to mount to
+#
+
+#mkdir -p /tmp/root
+#mount /dev/hda11 /tmp/root
+
+#
+# Creating the mount points on the root partition for the other slices
+#
+
+#for dir in boot usr var home tmp
+#do
+#  mkdir -p /tmp/root/$dir
+#done
+
+#
+# mounting all the slices in their appropriate order
+#
+
+#mount /dev/hda1 /tmp/root/boot
+#mount /dev/hda5 /tmp/root/usr
+
+#
+# Create /usr/local mount point
+#
+
+#if [ ! -d /tmp/root/usr/local ]
+#then
+#  mkdir /tmp/root/usr/local
+#fi
+#mount /dev/hda6 /tmp/root/usr/local
+#mount /dev/hda7 /tmp/root/var
+#mount /dev/hda8 /tmp/root/home
+#mount /dev/hda9 /tmp/root/tmp
+
+#
+# Unfluff the disk image
+#
+
+#cd /tmp/root
+#tar xvfzp /usr/wholedisk.tar.gz
+#cd /
+
+#
+# Make the swap partition
+#
+
+#echo Making swap partition on slice 10
+#mkswap /dev/hda10
+
+#
+# Set up lilo on the disk
+#
+
+#chroot /tmp/root lilo -C /etc/lilo.conf
+
+#
+# Unmount filesystems cleanly
+# Slice 6 should be first (/usr/local on usr) and 11 last since it is root
+#
+
+#for slice in 6 1 5 7 8 9 11
+#do
+#  umount /dev/hda$slice
+#done
+
+echo Done!

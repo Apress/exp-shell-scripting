@@ -1,0 +1,22 @@
+#!/bin/sh
+set -x
+#
+# Monitor number of files in a directory
+#
+
+FILENUM="/home/$LOGNAME/scripts/files:50:100:root /home/$LOGNAME/scripts:50:100:me@my_domain.net /:50:100:$LOGNAME"
+
+for monitor in $FILENUM
+do
+  set -- `echo $monitor | sed -e 's/:/ /g'`
+  file_count=`ls $1 | wc -l`
+  if [ $file_count -lt $2 ]
+  then
+    continue
+  elif [ $file_count -ge $2 -a $file_count -lt $3 ]
+  then
+    echo "Warning: File count in $1 is $file_count, should be less than $2" | mail -s "Directory file count warning for $1" $4
+  else
+    echo "Error: File count in $1 is $file_count, should be less than $2" | mail -s "Directory file count error for $1" $4 
+  fi
+done

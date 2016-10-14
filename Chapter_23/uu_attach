@@ -1,0 +1,40 @@
+#!/bin/bash
+
+#
+# Send an email with an attachment using uuencoding from the command line.
+#
+
+tmpfile=/tmp/uu_output.$$
+
+usage="Usage: $0 {filename} {email_address}"
+
+if [ ! -z $1 ]
+then
+  file=$1
+  if [ ! -f $file ]
+  then
+    echo $usage
+    exit 1
+  else
+    if [ ! -z $2 ]
+    then
+      address=$2
+    else
+      echo $usage
+      exit 1
+    fi
+  fi
+else
+  echo $usage
+  exit 1
+fi
+
+basefile=`basename $file`
+
+echo "A uuencoded file is attached called: $basefile" > $tmpfile
+echo >> $tmpfile
+uuencode $file $file >> $tmpfile
+
+mail -s "$basefile attached from $from" $address < $tmpfile
+
+rm $tmpfile

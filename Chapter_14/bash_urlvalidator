@@ -1,0 +1,137 @@
+#!/bin/bash
+#set -x
+
+#
+# Validate URL's that are found based on a top level URL that is passed
+# to the script
+#
+
+read_pipe=/tmp/read_pipe
+write_pipe=/tmp/write_pipe
+
+for file in $read_pipe $write_pipe
+do
+  if [ ! -p $file ]
+  then
+    mkfifo $file
+  fi
+done
+
+LOGFILE=/tmp/valid_url.log
+if [ -f $LOGFILE ]
+then
+  rm $LOGFILE
+fi
+
+function url_feeder
+{
+  for url in $*
+  do
+    set -m
+    echo $url > $write_pipe &
+    wait
+    set +m
+  done
+}
+
+function find_urls
+{
+  url=$1
+  urls=`lynx -dump $url | sed -n '/^References/,$p' | egrep -v "ftp://|javascript:|mailto:|news:|https://|file://|links" | tail -n +3 | awk '{print $2}' | cut -d\? -f1 | sort -u`
+
+  urlcount=`echo $urls | wc -w`
+
+  if [ "$urls" = "" ]
+  then
+    if [ "$2" != "" ]
+    then
+      echo $url Link Not Found on Server or Forbidden >> $LOGFILE
+    else
+      echo ""
+    fi
+  elif [ $urlcount -eq 1 -a "$urls" = "http://www.com.org/home.php" ]
+  then
+    if [ "$2" != "" ]
+    then
+      echo $url Site Not Found >> $LOGFILE
+    else
+      echo ""
+    fi
+  else
+    if [ "$2" != "" ]
+    then
+      echo "$url is valid" >> $LOGFILE
+    else
+      echo " $urls"
+    fi
+  fi
+}
+
+first_url=$1
+
+OPTIND=1
+while getopts l:u:p: ARGS
+do
+  case $ARGS in
+    l) levels=$OPTARG
+    ;;
+    u) totalurls=$OPTARG
+    ;;
+    p) max_parallel=$OPTARG
+    ;;
+    *) echo "Usage: $0 -l [levels to look] -u [url] -p [parallel checks]"
+       exit
+    ;;
+  esac
+done
+
+while [ $levels -ne 0 ]
+do
+  (( levels -= 1 ))
+  for url in $totalurls
+  do
+    totalurls="${totalurls}`find_urls $url`"
+    url_count=`echo $totalurls | wc -w`
+    echo Current total number of urls is: $url_count
+  done
+done
+
+totalurls=`for url in $totalurls
+do
+  echo $url
+done | sort -u`
+
+url_count=`echo $totalurls | wc -w`
+echo Final unique total number of urls is: $url_count
+
+url_feeder $totalurls &
+#coprocess_pid=$!
+
+processed_urls=0
+parallel_jobs=0
+
+#echo "GO" > $read_pipe
+
+while [ $processed_urls -lt $url_count ]
+do
+  unset parallel_pids
+  while [ $parallel_jobs -lt $max_parallel ]
+  do
+    if [ $(($processed_urls+$parallel_jobs)) -ge $url_count ]
+    then
+      break
+    fi
+    read url < $write_pipe
+sleep .05s
+echo The current url is $url
+    find_urls $url v &
+    parallel_pids="$parallel_pids $!"
+    parallel_jobs=$(($parallel_jobs+1))
+  done
+  wait $parallel_pids
+  processed_urls=$(($processed_urls+$parallel_jobs))
+  echo Processed $processed_urls URLs
+  parallel_jobs=0
+done
+
+rm $read_pipe $write_pipe

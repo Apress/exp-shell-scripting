@@ -1,0 +1,84 @@
+#!/bin/sh
+
+#
+# Detect a user keypress ("hot keyboard") and perform the appropriate task.
+#
+
+pi=`echo "a(1)*4" | bc -l`
+
+old_tty_settings=$(stty -g)   # Save old settings.
+stty -icanon
+theta=0
+velocity=0
+distance=
+height=
+time=
+
+while :
+do
+
+  # put the eqations here as it should be run each loop
+#set -x
+# convert the angle from degrees to radians
+angle=`echo "scale=5;$theta/57.29578" | bc -l`
+# gravity is 9.8m/s^2
+distance=`echo "scale=5;(($velocity^2)*2*(s($angle))*(c($angle)))/9.8" | bc -l`
+height=`echo "scale=5;(($velocity*s($angle))^2/(2*9.8))" | bc -l`
+time=`echo "scale=5;(2*($velocity*s($angle))/(9.8))" | bc -l`
+#set +x
+
+  clear 
+  echo "j to decrease launch angle    --- k to increase launch angle"
+  echo "h to decrease launch velocity --- l to increase launch velocity"
+  echo
+  echo "x or q to exit."
+  echo
+  echo "Launch angle deg.=$theta  Velocity M/s=$velocity"
+  echo
+  echo "Distance: $distance meters"
+  echo "Maximum height: $height meters"
+  echo "Flight Time: $time seconds"
+
+  Keypress=$(head -c1)          # or $(dd bs=1 count=1 2> /dev/null)
+                                # on non-GNU systems
+
+  # The velocity won't go below zero and the angle will roll between 0 and
+  # 90 and then back to zero again.
+  case $Keypress in
+    j|J)
+      if [ $theta -ne 0 ]
+      then
+        theta=$(($theta-1))
+      else
+        theta=90
+      fi
+      ;;
+    k|K)
+      if [ $theta -ne 90 ]
+      then
+        theta=$(($theta+1))
+      else
+        theta=0
+      fi
+      ;;
+    h|H)
+      if [ $velocity -ne 0 ]
+      then
+        velocity=$(($velocity-1))
+      else
+        velocity=0
+      fi
+      ;;
+    l|L)
+      velocity=$(($velocity+1))
+      ;;
+    q|Q|x|X)
+      break
+      ;;
+  esac
+
+done
+
+stty "$old_tty_settings"      # Restore old settings.
+
+exit 0

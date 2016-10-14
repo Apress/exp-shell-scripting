@@ -1,0 +1,55 @@
+#!/usr/bin/expect -f
+
+#
+# Perform the interactive processing with expect to the terminal server.
+#
+
+set TERMSERV [lindex $argv 0]
+set USER [lindex $argv 1]
+
+send_user "These are the args $argv\n"
+
+# Start the session
+catch {spawn -noecho telnet $TERMSERV 2000}
+
+set timeout 10
+expect {
+  timeout { send_user "Telnet timed out waiting for $TERMSERV\n" ; exit }
+  "onnection refused" { send_user "Connection was refused to $TERMSERV\n" ; exit }
+  "nknown host" { send_user "System $TERMSERV is unknown\n" ; exit}
+  "Escape character is '^]'."
+}
+send "\r"
+
+# Login
+expect "#"         { send "access\r" }
+expect "username>" { send "$USER\r" }
+expect ">"         { send "set priv\r" }
+expect "Password>" { send "system\r" }
+expect ">>"
+
+# Send all the CMDS
+set argc [llength $argv]
+for {set i 2} {$i<$argc} {incr i} {
+  send "[lindex $argv $i]\r"
+  expect ">>"
+}
+
+# Quit the session
+send ""
+expect "telnet>"
+send "quit\r"
+send_user "\n"
+ 
+#expect {
+  #"login: " {
+    #send "$USER\r"
+    #interact
+  #} "Username: " {
+    #send "$USER\r"
+    #interact
+  #} "Password: "
+    #interact
+  #}
+#}
+#interact

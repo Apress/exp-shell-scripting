@@ -1,0 +1,40 @@
+#!/bin/sh
+
+#
+# This script is the basic structure for performing or not performing a
+# task based on the hour of the day or the day of the week.
+# The endpoints in the range are inclusive.  0-6 and 0-23 are will notify
+# all the time.
+#
+if [ $# -ne 4 ]
+then
+  echo Usage: $0 {day begin} {day end} {hour begin} {hour end}
+  echo "       Days are 0-6 where 0 is Sunday."
+  echo "       Hours are 0-23."
+  exit
+fi
+
+DAY_BEGIN=$1
+DAY_END=$2
+HOUR_BEGIN=$3
+HOUR_END=$4
+
+#
+# Setup variables for current day and hour for paging times
+#
+
+# day of week 0-6 where 0=Sunday
+DAY=`date +%w`
+# hour of day in the form of 0-23
+HOUR=`date +%H`
+
+if [ $DAY -ge $DAY_BEGIN -a $DAY -le $DAY_END -a $HOUR -ge $HOUR_BEGIN -a $HOUR -le $HOUR_END ]
+then
+  # traditionally a good return or in this case, a yes.
+  echo "It is time to notify"
+  echo 0
+else
+  # traditionally a bad return or in this case, a no.
+  echo "It is not time to notify"
+  echo 1
+fi

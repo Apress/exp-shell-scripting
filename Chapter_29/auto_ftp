@@ -1,0 +1,17 @@
+#!/bin/sh
+
+# A script to automatically download the latest squidguard blacklist
+
+SERVER=ftp.teledanmark.no
+FILE=blacklists.tar.gz
+DIR=/pub/www/proxy/squidGuard/contrib
+
+echo "FTPing current squidguard blacklist"
+ftp -n $SERVER << EOF
+  user anonymous rbpeters@peterro.com
+  cd $DIR
+  ls -l
+  hash
+  bye
+EOF
+  #get $FILE

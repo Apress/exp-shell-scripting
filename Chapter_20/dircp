@@ -1,0 +1,22 @@
+#!/bin/sh
+
+#
+# Copy a whole directory while maintaining the as many attributes of the
+# original directory such as ownership and permissions.
+#
+
+if [ $# -ne 2 ]
+then
+  echo Usage: $0 {Source Directory} {Destination Directory}
+  exit 1
+fi
+
+SRC=$1
+DST=$2
+
+if [ ! -d $DST ]
+then
+  mkdir -p $DST
+fi
+
+find $SRC -depth | xargs tar cvf - | (cd $DST && tar xvfp -)

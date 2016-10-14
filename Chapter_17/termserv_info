@@ -1,0 +1,78 @@
+#!/bin/sh
+
+#
+# Called with either predefined switches or a custom command to send
+# to a proprietary serial terminal server.  This script calls a secondary
+# expect script that does the interactive work.
+#
+
+NODE=""
+CMDS=""
+NODEFILE=""
+USAGE="There is a problem with the command, type $0 -h for syntax"
+
+if [ $# -eq 0 ]
+then
+  echo $USAGE
+  exit 1
+fi
+
+OPTIND=1
+while getopts ihlc:f:n: opt
+do
+  case $opt in
+    i) CMDS="$CMDS \"sho ip\""
+    ;;
+    c) CUSTOM_CMD=$OPTARG
+       CMDS="$CMDS \"$CUSTOM_CMD\""
+    ;;
+    h) cat << EOT
+Usage:
+  $0 [-ihl] [-c "custom command"] [-f node_file] [-n node]
+    where:
+           -i      Sends the "sho ip" command to the Xyplex terminal server
+           -h      Displays this information
+           -l      Logs out ports 1-15
+           -c      Takes a custom command and sends it to the xyplex.  Double
+                   quotes are required.  You can have as many of these as
+                   you like.
+           -f      Define a file with a list of terminal servers to apply the
+                   commands to.
+           -n      Define a specific node to apply the command to.
+EOT
+       exit 0
+    ;;
+    l) CMDS="$CMDS \"logout por 1-15\""
+    ;;
+    f) NODEFILE=$OPTARG
+    ;;
+    n) NODE=$OPTARG
+    ;;
+    ?) echo $USAGE
+       exit 1
+    ;;
+    *) echo $USAGE
+       exit 1
+    ;;
+  esac
+done
+
+if [ "$NODEFILE" != "" ]
+then
+  if [ -s $NODEFILE ]
+  then
+    for node in `cat $NODEFILE`
+    do
+      eval ./xyp_connect $node $LOGNAME $CMDS
+    done
+  else
+    echo There is a problem with $NODEFILE
+  fi
+else
+  if [ "$NODE" != "" ]
+  then
+    eval ./xyp_connect $NODE $LOGNAME $CMDS
+  else
+    echo $USAGE
+  fi
+fi

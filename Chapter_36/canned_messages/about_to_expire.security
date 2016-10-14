@@ -1,0 +1,17 @@
+The $ENVIRONMENT UNIX account password for \\"$USERID\\" will expire in $REMAINING day\\(s\\)
+
+=========================================================================
+++ ACTION NEEDS TO BE TAKEN OR YOUR ACCOUNT WILL BE LOCKED IN $REMAINING day\\(s\\)++ 
+=========================================================================
+
+If the password is not changed within $REMAINING day\\(s\\), the account will be locked.
+ 
+Instructions for changing passwords are located at:
+ 
+   http://server.company.com/documentation/user_access_info.html
+ 
+If you are unable to change your password or need further assistance, please call the Help Desk.
+ 
+If you no longer need this account, please reply to this message and let us know so we can remove it.
+ 
+System Administration

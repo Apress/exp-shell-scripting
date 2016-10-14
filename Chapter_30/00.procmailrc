@@ -1,0 +1,32 @@
+#
+# .procmailrc: The procmail resource control file to configure how
+# you want email to be processed by procmail.  This file should be
+# named .procmailrc
+#
+#-------------------------------------------------------------
+PATH=/bin:/usr/bin:/usr/local/bin
+MAILDIR=$HOME/Mail
+LOGFILE=$MAILDIR/procmail.log
+VERBOSE=yes
+LOGABSTRACT=yes
+SUBJECT=`formail -xSubject:`
+FROM=`formail -xFrom:`
+#-------------------------------------------------------------
+# Grab mail messages and feed the body of the message to the pipe
+#
+#
+# --- System Audits --------------------------------
+#:0 getthisfile.lock
+  #* ^Subject:.*getthisfile
+    #{
+    #:0 b
+    	#| /home/rbpeters/scripts/getthisfile
+    #}
+#------------All other messages ------------------
+#:0 c
+#* 
+  #! ron.peters@mydomain.com
+
+#:0fw
+#* < 256000
+#| /usr/bin/spamc -d localhost

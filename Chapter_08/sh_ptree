@@ -1,0 +1,78 @@
+#!/bin/sh
+
+#
+# Display process table in tree form
+#
+
+if [ "$1" = "" ]
+then
+  proc=1
+else
+  proc=$1
+fi
+
+main () {
+
+PSFILE=/tmp/duh
+ps -ef | sort -n +1 | tail -n +2 > $PSFILE
+pscount=`wc -l $PSFILE | awk '{print $1}'`
+count=0
+
+# This technique will work in ksh, but since there are going to be array
+# subscripts larger than 1024, bash is the way to go.
+while [ $count -le $pscount ]
+do
+  #line=`tail -n +$count $PSFILE | head -n 1`
+  line=`tail +$count $PSFILE | head -1`
+#echo $line
+  line=`echo "$line" | sed -e s/\>/\\\\\\>/g`
+  # works in ksh/pdksh as long as the subscript is below 1024.. here it is not
+  # bash works fine though.
+  #set -A process $line for a ksh script
+  #declare -a process=( $line )
+  #set -A process $line
+  pid=`echo $line | awk '{print $2}'`
+
+  eval owner$pid=\"`echo $line | awk '{print $1}'`\"
+
+  eval ppid$pid=\"`echo $line | awk '{print $3}'`\"
+  eval command$pid="\"`echo $line | awk '{for(i=8;i<=NF;i++) {printf \"%s \",$i}}'`\""
+  eval parent='$ppid'$pid
+  eval children$parent=\"'$children'$parent $pid\"
+  count=`echo $count+1 | bc`
+done
+#done < $PSFILE
+
+print_tree $proc ""
+
+}
+
+print_tree () {
+id=$1
+
+echo -ne "$2$id \c"
+eval echo \"'$owner'$id '$command'$id\"
+
+if eval [ \"'$children'$id\" = "\"\"" ]
+then
+  return
+else
+  for child in `eval echo '$children'$id`
+  do
+  eval parent='$ppid'$child
+    if [ "$child" = "`eval echo '$children'$parent | awk '{print $NF}'`" ]
+    then
+      echo "$2 \\"
+      temp="$2  "
+    else
+      echo "$2|\\"
+      temp="$2|  "
+    fi
+    print_tree $child "$temp"
+  done
+fi
+
+}
+
+main
+rm $PSFILE

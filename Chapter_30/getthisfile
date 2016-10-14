@@ -1,0 +1,56 @@
+#!/bin/sh
+#set -x
+
+#
+# Simple script called by procmail to interact with a machine via email.
+#
+
+warn_mail=my_email@mydomain.com
+me=`uname -n`
+
+LOG=/home/$LOGNAME/scripts/filetoget.log
+echo `date` >> $LOG
+echo Subject: $SUBJECT >> $LOG
+
+filetoget=`echo $SUBJECT | awk '{print $3}'`
+echo filetoget: $filetoget >> $LOG
+
+whattodo=`echo $SUBJECT | awk '{print $2}'`
+echo whattodo: $whattodo >> $LOG
+
+command=`echo $SUBJECT | cut -d\  -f3-`
+echo Command: $command >> $LOG
+
+if [ "$FROM" != " user1@good_domain.com" -a "$FROM" != " user2@another_good_domain.com" ]
+then
+  echo "Invalid user $FROM trying to get procmail info: $SUBJECT" >> $LOG
+  tail -10 $LOG | mail -s "$FROM attempting to get procmail info" $warn_mail
+  exit 0
+fi
+
+if [ "$whattodo" = "binary" ]
+then
+  echo "binary filetoget: $filetoget" >> $LOG
+  echo "sending it to: $FROM" >> $LOG
+  cd /tmp
+  filename=`echo $filetoget | awk -F/ '{print $NF}'`
+  uuencode $filetoget $filename > /tmp/$filename.uue
+  echo "cat /tmp/$filename.uue | mail -s \"uuencoded $filetoget from $me\" $FROM" >> $LOG
+  cat /tmp/$filename.uue | mail -s "uuencoded $filetoget from $me" $FROM >> $LOG
+  rm /tmp/$filename.uue
+elif [ "$whattodo" = "command" ]
+then
+  echo Running command $command >> $LOG
+  echo "$command | mail -s \"Output of $command on $me\" $FROM" >> $LOG
+  $command | mail -s "Output of $command on $me" $FROM >> $LOG
+elif [ "$whattodo" = "help" ]
+then
+  echo "Sending usage to $FROM" >> $LOG
+  echo "Subject: getthisfile {binary|command|help} {path/file|command}" | mail -s "Usage" $FROM
+else
+  filetoget=$whattodo
+  echo "filetoget: $filetoget" >> $LOG
+  echo "sending it to: $FROM" >> $LOG
+  echo "cat $filetoget | mail -s \"$filetoget from $me\" $FROM" >> $LOG
+  cat $filetoget | mail -s "$filetoget from $me" $FROM >> $LOG
+fi

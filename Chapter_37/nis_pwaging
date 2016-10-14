@@ -1,0 +1,136 @@
+#!/bin/ksh
+#set -x
+
+#
+# Maintain a pseudo shadow file for systems such as NIS that don't
+# use one.  This is so password aging can be performed on that type
+# of environment.
+#
+
+HOME=/usr/local/pass_aging
+ARCHIVE=$HOME/archive
+BIN="$HOME/bin"
+# The environment.  This is used to populate the notifications
+ENVIRONMENT="Scripting"
+# Admin email
+ADMIN_EMAIL=sysadmin
+# If debug is non-null, output will be displayed when run
+DEBUG=duh
+# The shadow file to use.
+shad=/usr/local/pass_aging/bin/shadow_nis
+pswd=/var/yp/src/passwd
+#pswd=/var/yp/src/passwd
+PERL=/usr/bin/perl
+ED=ed.script
+
+if [ "`id | grep \(root\)`" = "" ]; then
+  echo "This script must be run as root - exiting" >&2
+  exit 1
+fi
+
+if [ ! -f $HOME/config/nis_pwaging.conf ]; then
+  echo "Error: No config file found, exiting"
+else
+  . $HOME/config/nis_pwaging.conf
+fi
+
+#
+# Figure out days since 1/1/1970
+#
+seconds_since_epoch=`$PERL -e 'print time'`
+seconds_per_day=$((60*60*24))
+days_since_epoch=$(($seconds_since_epoch/$seconds_per_day))
+
+#
+# If $shad does not exist, create the initial one.
+#
+if [ ! -f $shad ]
+then
+  test "$DEBUG" != "" && echo DEBUG: $shad does not exist, creating
+  cat $pswd | awk -v days=$days_since_epoch -F: '{print $1 ":" $2 ":" days ":0:90:7:::"}' > $shad
+fi
+#
+# backup the $shad file for safety
+#
+backdate=`date +%m%d%y%H%M`
+test "$DEBUG" != "" && echo DEBUG: Backing up $shad to $ARCHIVE/nis_shadow.$backdate
+cp -p $shad $ARCHIVE/nis_shadow.$backdate
+
+#
+# cleanup the archive
+#
+find $ARCHIVE -mtime +7 -exec rm {} \;
+
+#
+# Remove any previously existing ed script
+#
+if [ -f $HOME/bin/$ED ]
+then
+  test "$DEBUG" != "" && echo DEBUG: Cleaning up old ed.script
+  rm $HOME/bin/$ED
+fi
+
+for user in `cut -d: -f1 $pswd`
+do
+  #
+  # Get some values from the user passwd/shadow entries
+  #
+  cur_pass_word=`grep "^${user}:" $pswd | cut -d: -f2`
+  user_exist=`grep "^${user}:" $shad | cut -d: -f1`
+  if [ "$user_exist" = "" ]
+  then
+    # Add any new users to the shadow file
+    echo "$user:$cur_pass_word:$days_since_epoch:0:90:7:::" >> $shad
+    test "$DEBUG" != "" && echo DEBUG: Missing $user, adding to $shad
+  fi
+  pass_days=`grep "^${user}:" $shad | cut -d: -f3`
+  old_pass_word=`grep "^${user}:" $shad | cut -d: -f2`
+  #test "$DEBUG" != "" && echo DEBUG: $user, $cur_pass_word, $old_pass_word, $pass_days
+
+  if [ "$old_pass_word" != "$cur_pass_word" ]
+  then
+    test "$DEBUG" != "" && echo DEBUG: $user password has changed, updating $shad
+    #
+    # Change it in the shadow file and update the days since change field.
+    #
+
+    #
+    # Make sure the encrypted passwords can be handled.  a '.' , '/' and '$'
+    # are valid characters in that string so make sure they are 
+    # replaced with '\.' and '\/' respectively.
+    #
+    old_pass_word=`echo $old_pass_word | sed -e s/\\\./\\\\\\\\./g`
+    old_pass_word=`echo $old_pass_word | sed -e s/\\\*/\\\\\\\\*/g`
+    old_pass_word=`echo $old_pass_word | sed -e s/\\\$/\\\\\\\\$/g`
+    old_pass_word=`echo $old_pass_word | sed -e s/\\\\\//\\\\\\\\\\\//g`
+
+    cur_pass_word=`echo $cur_pass_word | sed -e s/\\\./\\\\\\\\./g`
+    cur_pass_word=`echo $cur_pass_word | sed -e s/\\\*/\\\\\\\\*/g`
+    cur_pass_word=`echo $cur_pass_word | sed -e s/\\\$/\\\\\\\\$/g`
+    cur_pass_word=`echo $cur_pass_word | sed -e s/\\\\\//\\\\\\\\\\\//g`
+
+    # Whack the last 2 characters off of the encrypted passwords.  Since
+    # there are valid $ characters, the end of line $-sign is then
+    # escaped above which we don't want.
+
+    old_pass_word=`echo $old_pass_word | sed 's/\(.*\)\(.\)\(.\)$/\1/'`
+    cur_pass_word=`echo $cur_pass_word | sed 's/\(.*\)\(.\)\(.\)$/\1/'`
+
+    #
+    # Create the ed script that will replace the encrypted password
+    ## This could probably be done with one file instead of one 'ed' for
+    ## each username
+    # 
+    test "$DEBUG" != "" && echo DEBUG: Creating ed file to change $old_pass_word:$pass_days to $cur_pass_word:$days_since_epoch
+    echo "g/$user:$old_pass_word/s/$old_pass_word:$pass_days/$cur_pass_word:$days_since_epoch/g" >> $HOME/bin/$ED
+  else
+    test "$DEBUG" != "" && echo DEBUG: No changes for $user
+    continue
+  fi
+done
+
+# Complete and process the file with the ed.script
+echo "w"                         >> $HOME/bin/$ED
+echo "q"                         >> $HOME/bin/$ED
+test "$DEBUG" != "" && echo DEBUG: Running ed.script for $user on $shad
+ed -s $shad < $HOME/bin/$ED > /dev/null

@@ -1,0 +1,20 @@
+#!/bin/sh
+#set -x
+
+#
+# A more simple script to wait for user input and timeout after a predefined
+# timeout has been reached.
+#
+
+/usr/bin/echo -n "Input a letter or wait 3 seconds: "
+# Min is the minimum number of characters for a completed read
+# time is the time to delay before it continues.  This is in tenths of seconds
+# -icanon will disable the erase, kill, werase and rprnt special characters
+stty -icanon min 0 time 30
+# Set the value of the 1 character that you typed to the ANSWER variable.
+ANSWER=`dd bs=1 count=1 2>/dev/null`
+# re-enable the erase, kill, werase and rprnt special characters
+stty icanon
+# two echos because it needs a carriage return after inputting the single
+# character.
+echo ; echo Answer: $ANSWER

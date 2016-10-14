@@ -1,0 +1,53 @@
+#!/bin/sh
+#set -x
+
+#
+# Throw a root window to a users desktop display
+#
+
+if [ $# -ne 1 ]
+then
+  echo "This script will send a root window to a users display that is using"
+  echo "ssh as there access to the environment"
+  echo
+  echo "Usage: $0 {username}"
+  exit 1
+fi
+
+user=$1
+userhome=`grep "^$user:" /etc/passwd | cut -d: -f6`
+if [ -f $userhome/.xdisp.$user ]
+then
+  if [ -f /usr/bin/X11/xauth ]
+  then
+    cat $userhome/.xauth.$user | /usr/bin/X11/xauth nmerge -
+    if [ $? -ne 0 ]
+    then
+      echo "Something wrong with the $userhome/$user/.xauth file"
+      echo "Please fix and try again."
+      exit 1
+    fi
+  else
+    cat $userhome/.xauth.$user | /usr/openwin/bin/xauth nmerge -
+  fi
+    DISPLAY=`cat $userhome/.xdisp.$user`
+    export DISPLAY
+else
+  echo "SSH Display information not available for $user.  Is $user using it?"
+  exit 1
+fi
+
+RIP="This `whoami`@`uname -n` xterm window expires in 1 hr from `date '+%H:%M'`"
+
+if [ -f /usr/bin/X11/xterm ]
+then
+  nohup /usr/bin/X11/xterm -ls -sb -T "$RIP" &
+elif [ -f /usr/openwin/bin/xterm ]
+then
+  nohup /usr/openwin/bin/xterm -ls -sb -T "$RIP" &
+else
+  nohup /usr/bin/xterm -ls -sb -T "$RIP" &
+fi
+
+PID=$!
+echo "kill $PID" | at -m now + 1 hour

@@ -1,0 +1,49 @@
+#!/bin/ksh
+
+# This is the script that is called by the pwaging command which sends
+# either about to be locked or accont locked notifications.
+#
+# If the DEBUG_EMAIL value in the config file is set, all mail will
+# go to that account instead of notifying the actual user.
+#
+#usage: send_email username days_since_pwchange (about_to_expire|account_locked)
+#
+# rbpeters  07/11/03      Created.
+#    
+HOME=/var/yp/bin/pwaging
+. $HOME/config/pwaging.conf
+messages=$HOME/canned_messages
+MAIL=`which mailx`
+BC=`which bc`
+
+#echo "Parameter count: $#"
+
+if [ $# -ne 3 ]
+then
+  echo "usage $0 username days_since_pwchange (about_to_expire|account_locked)"
+else
+  USERID=$1
+  if [ "$DEBUG_EMAIL" != "" ]
+  then
+    RECIPIENT=$DEBUG_EMAIL
+  else
+    echo passwd is $pswd
+    pwdline=`grep "^$USERID" $pswd`
+    if [ "$pwdline" != "" ]
+    then
+      RECIPIENT=$USERID
+    fi
+  fi
+  if [ "$RECIPIENT" = "" ]
+  then
+    RECIPIENT=root
+  fi
+  days_since_pwchange=$2
+  message=$3
+  REMAINING=`echo $VALID_DAYS-$days_since_pwchange | $BC`
+  cat $messages/$message | while read duh
+  do
+    holder=`eval echo $duh`
+    echo $holder
+  done | $MAIL -s "$ENVIRONMENT UNIX Account Notification" $RECIPIENT
+fi

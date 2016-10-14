@@ -1,0 +1,59 @@
+#!/bin/sh
+
+#
+# Send an email with an attachment using mime encoding from the command line.
+#
+
+tmpfile=/tmp/mime_output.$$
+
+from="$USER@`cat /etc/dnsdomainname`"
+usage="Usage: $0 {filename} {email address}"
+
+if [ ! -z $1 ]
+then
+  file=$1
+  if [ ! -f $file ]
+  then
+    echo $usage
+    exit 1
+  else
+    if [ ! -z $2 ]
+    then
+      address=$2
+    else
+      echo $usage
+      exit 1
+    fi
+  fi
+else
+  echo $usage
+  exit 1
+fi
+
+basefile=`basename $file`
+
+cat > $tmpfile << EOT
+From: $from
+To: $address
+Subject: $file attached from $from
+MIME-Version: 1.0
+Content-Type: multipart/mixed;boundary="mime-attachment-boundary"
+
+--mime-attachment-boundary
+Content-Type: text/plain; charset="iso-8859-1"
+Content-Transfer-Encoding: 8bit
+
+A MIME encoded file is attached called: $basefile
+--mime-attachment-boundary
+Content-Type: application/octet-stream; name="$basefile"
+Content-Transfer-Encoding: base64
+Content-Disposition: attachment; filename="$basefile"
+
+EOT
+/usr/bin/mimencode $file >> $tmpfile
+
+echo --mime-attachment-boundary--  >> $tmpfile
+
+/usr/lib/sendmail -t < $tmpfile
+
+rm $tmpfile

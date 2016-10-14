@@ -1,0 +1,136 @@
+#!/bin/sh
+#
+# logwatch watches log files for specified strings and notifies
+#
+# This must run all the time and have a configurable sleep time between runs.
+# It must run all the time because it holds the current and previous lenght
+# of each monitored file in memory.
+#
+debug=0
+#
+# get the filecount information
+#
+DELAY=10
+LOGCHKS="/home/rbpeters/scripts/testlog:somethinG%20dumb:rbp:warn"
+
+while :
+do
+  LOGTOCHK_COUNT=0
+  for LOGTOCHK in `echo $LOGCHKS`
+  do
+    #
+    # Get all the values from the config file
+    #
+    logfile=`echo $LOGTOCHK | cut -d: -f1`
+    strings="`echo $LOGTOCHK | awk -F: '{print $2}'`"
+    # Replace the %20's with spaces
+    strings="`echo $strings | sed -e \"s/%20/ /g\"`"
+    exceptions=`echo $LOGTOCHK | cut -d: -f3`
+    # Replace the %20's with spaces
+    exceptions="`echo $exceptions | sed -e \"s/%20/ /g\"`"
+    notify=`echo $LOGTOCHK | cut -d: -f4`
+    test $debug -gt 0 && echo "INFO: Logfile: $logfile Strings: $strings Exceptions: $exceptions Notify: $notify"
+    #
+    # LOGTOCHK_COUNT is the number of the entry in the config file.  If there
+    # are 2 log files that are configured to be watched, this value will
+    # be 1 and 2.  Makes watching the same log file multiple times unique.
+    #
+    LOGTOCHK_COUNT=`expr $LOGTOCHK_COUNT + 1`
+    #
+    # The LOGNAME is just the name of the log file with /'s and .'s replaced
+    # with _'s.  Both the LOGNAME and LOGTOCHK_COUNT are used later to build
+    # on-the-fly (indirect) variable names.
+    #
+    LOGNAME=`echo $logfile | sed -e s/\\\//_/g`
+    LOGNAME=`echo $LOGNAME | sed -e s/\\\./_/g`
+    #
+    # Check to see if the line count of the file is null.  This indicates
+    # that it is the first run through and the counters should be reset.
+    #
+    if [ "`eval echo '$COUNT'${LOGNAME}_$LOGTOCHK_COUNT`" = "" ]
+    then
+      eval BASE${LOGNAME}_$LOGTOCHK_COUNT=`wc -l $logfile | awk '{ print $1 }'`
+    fi
+    #
+    # Get the line count of the log file
+    #
+    if [ -f $logfile ]
+    then
+      eval COUNT${LOGNAME}_$LOGTOCHK_COUNT=`wc -l $logfile | awk '{ print $1 }'`
+    else
+      test $debug -gt 0 && echo "$logfile does not exist"
+      echo "You might consider putting in some notification to let you know"
+      echo "that the file doesn't exist"
+    fi
+    #
+    # If the count is greater than the base value, get the number of lines
+    # that is greater, tail those lines and egrep for the desired values.
+    # Also, remove any lines that have the exeptions defined.
+    #
+    if [ `eval echo '$COUNT'${LOGNAME}_$LOGTOCHK_COUNT` -gt `eval echo '$BASE'${LOGNAME}_$LOGTOCHK_COUNT` ]
+    then
+      LINES=`eval expr '$COUNT'${LOGNAME}_$LOGTOCHK_COUNT - '$BASE'${LOGNAME}_$LOGTOCHK_COUNT`
+      eval BASE${LOGNAME}_$LOGTOCHK_COUNT='$COUNT'${LOGNAME}_$LOGTOCHK_COUNT
+  
+      if [ "$exceptions" != "" ]
+      then
+        MSGS=`tail -$LINES $logfile | egrep -i "$strings" | egrep -iv "$exceptions"`
+        test $debug -gt 0 && echo "MSGS is $MSGS"
+      else
+        MSGS=`tail -$LINES $logfile | egrep -i "$strings"`
+        test $debug -gt 0 && echo "MSGS is $MSGS"
+      fi
+
+      #
+      # If there are any messages found, send the notification based on the
+      # desired type, warn/error.
+      #
+      if [ ! -z "$MSGS" ]
+      then
+        if [ "$notify" != "error" ]
+        then
+          echo "Replace this with the warning notification code."
+        else
+          echo "Replace this with the error notification code."
+        fi
+      fi
+    #
+    # If the line count of the file is less than the base value (the value
+    # from the previous loop through the code), reset the base value.  This
+    # is likely because the log just rolled and is now starting over.  Also
+    # check for the strings since messages may be missed when the log rolls.
+    #
+    elif [ `eval echo '$COUNT'${LOGNAME}_$LOGTOCHK_COUNT` -lt `eval echo '$BASE'${LOGNAME}_$LOGTOCHK_COUNT` ]
+    then
+      if [ "$exceptions" != "" ]
+      then
+        MSGS=`egrep -i "\"$strings\"" $logfile | egrep -iv "$exceptions"`
+        test $debug -gt 0 && echo "MSGS is $MSGS"
+      else
+        MSGS=`egrep -i "$strings" $logfile`
+        test $debug -gt 0 && echo "MSGS is $MSGS"
+      fi
+      #
+      # If there are any messages found, send the notification based on the
+      # desired type, warn/error.
+      #
+      if [ ! -z "$MSGS" ]
+      then
+        if [ "$notify" != "error" ]
+        then
+          echo "Replace this with the warning notification code."
+        else
+          echo "Replace this with the error notification code."
+        fi
+      fi
+      # This resets the tracked size of the log if the log gets smaller
+      eval BASE${LOGNAME}_$LOGTOCHK_COUNT='$COUNT'${LOGNAME}_$LOGTOCHK_COUNT
+    #
+    # If there is no change in the file, do nothing
+    #
+    else
+      test $debug -gt 0 && echo "No change in size of $logfile"
+    fi
+  done
+  sleep $DELAY
+done

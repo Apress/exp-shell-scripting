@@ -1,0 +1,35 @@
+#!/bin/sh
+
+#
+# Find, maintain and track core files created on an individual system.
+#
+
+HOWOLD=30
+FSLIST="/ /boot"
+UNAME=`uname -n`
+DATE=`date +%m%d%I%M`
+DATADIR="/usr/local/data/cores"
+LOGFILE="$DATADIR/cor_report"
+
+if [ ! -d $DATADIR ]
+then
+  mkdir -p $DATADIR
+fi
+
+# 
+# Find the core files and create the list of files.
+#
+
+find $DATADIR -name \*\.core\.\* -mtime +$HOWOLD -exec rm {} \;
+
+for file in `find $FSLIST -mount -type f -name core -print`
+do
+  if [ -s $file ]
+  then
+    coretype=`file $file | cut -d\' -f2`
+    mv $file $DATADIR/$UNAME.core.$coretype.$DATE
+    echo "$coretype $UNAME $DATADIR/$UNAME.core.$coretype.$DATE" | tee -a $LOGFILE | mail -s "core_finder: $coretype core file found on $UNAME" sysadmins
+  else
+    rm $file
+  fi
+done

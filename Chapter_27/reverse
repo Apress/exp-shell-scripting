@@ -1,0 +1,37 @@
+#!/bin/sh
+
+#
+# Reverse the output of a file or stdin using a pseudo array of indirect
+# variables.
+#
+
+counter=0
+
+populate () {
+  counter=$(($counter+1))
+  eval COUNT${counter}='$LINE'
+}
+
+if [ "$1" != "" ]
+then
+  if [ -f $1 ]
+  then
+    while read LINE
+    do
+	  populate
+    done < $1
+  else
+    echo "$1 Does not exist, please try again"
+  fi
+else
+  while read LINE
+  do
+	populate
+  done
+fi
+
+while [ $counter -gt 0 ]
+do
+  eval echo '$COUNT'$counter
+  counter=$(($counter-1))
+done

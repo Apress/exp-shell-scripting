@@ -1,0 +1,20 @@
+
+#
+# System profile segment to grab and save the Xauthority information
+#
+
+if [ "`uname -n`" = "casper" ] && [ "$REMOTEHOST" != "casper" ] && [ "$DISPLAY" != "" ]
+then
+  xauth nextract - $DISPLAY > $HOME/.xauth.$LOGNAME
+  chmod 600 $HOME/.xauth.$LOGNAME
+  echo $DISPLAY > $HOME/.xdisp.$LOGNAME
+  chmod 600 $HOME/.xdisp.$LOGNAME
+  ~/scripts/window.sh
+else
+  if [ -f $HOME/.xauth.$LOGNAME ]
+  then
+    cat $HOME/.xauth.$LOGNAME | xauth nmerge -
+    DISPLAY=`cat $HOME/.xdisp.$LOGNAME`
+    export DISPLAY
+  fi
+fi

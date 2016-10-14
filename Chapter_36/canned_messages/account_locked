@@ -1,0 +1,13 @@
+The $ENVIRONMENT UNIX account \\"$USERID\\" has been locked.
+
+$ENVIRONMENT UNIX passwords must be changed every $VALID_DAYS days. Because the password for this account was not changed within the appropriate time period, the account has been locked.
+
+In order to have the account unlocked, you must E-Mail 'Accounts'.
+
+If your account remains locked for $VALID_DAYS days, it will be removed and you will need to request a new account if necessary.
+
+If this locking of your password is incorrect, call the Help Desk and request a password reset.
+
+If you no longer need this account, please reply to this message and let us know so we can remove it.
+
+System Administration

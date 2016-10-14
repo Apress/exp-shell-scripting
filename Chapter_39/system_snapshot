@@ -1,0 +1,230 @@
+#!/bin/sh
+#set -x
+# ----------------------------------------------------------------------
+# Ron Peters (rbpeters @ peterro . com) 5/13/04.
+# This is a modified version of Mike Rubel's idea which can be found here:
+# http://www.mikerubel.org/computers/rsync_snapshots/index.html
+# I'd appreciate knowing any updates/fixes.  I imagine Mike would as well.
+# ----------------------------------------------------------------------
+#
+# ----------------------------------------------------------------------
+# This is a system backup utility that takes snapshots of specified
+# directories.  It should be scheduled as a cron task for every hour.
+# It also rolls them up and keeps them organized as such:
+#
+# In the directory specified, it creates snapshot directories in the
+# form of HOURLY.0 HOURLY.1 ... HOURLY.23 .. DAILY.0 DAILY.1 etc.
+#
+# In the snapshot directories is the location where the configured
+# directories to backup are rooted.  If you are backing up /etc and
+# /usr/local/bin, there will be a HOURLY.0/etc and HOURLY.0/usr/local/bin
+# directory containing your backed up files.  This will be the same for
+# all of the other snapshot directories.
+#
+# Default behavior:
+# Hourly occurs everytime the job is run.
+# Daily rolls everytime the job is run and it is 1am.
+# Weekly rolls everytime the job is run, it is 1am and Monday.
+# Monthly rolls everytime the job is run, it is 1am and the 1st of the month.
+#
+#-------------- Config Options -----------------------------------------
+
+# Do the snapshots exist on another mountpoint; 0 = no
+# Note: it really is a good idea to have them on another
+# mountpoint, but sometimes it's not always feasable.
+SEPARATE_MOUNT=1
+# Source mountpoint or directory we are performing snapshots on
+# This list of directories should be space delimited
+SYNCDIR="/root /etc /home /var/www /usr/local /var/spool/cron /var/spool/mail"
+# The device where you want to put the snapshots.  Only needed if your
+# mount point exists on another physical device
+MOUNT_DEVICE=/dev/hdb1
+# Destination root mountpoint/directory of your snapshots
+SNAPSHOT_RW=/snapshot
+# This is the actual directory where the snapshots will be stored.
+DEST=/$SNAPSHOT_RW
+
+# By default, this grabs about a years worth of snapshots becoming
+# increasingly less granular the farther out they go.
+
+# These are the timestamps at which the specified snapshots get rolled up.
+# Day of the month to roll
+MONTHLY_STAMP=`date +%e`
+# Day of the week to roll
+WEEKLY_STAMP=`date +%u`
+# Hour of the day to roll
+DAILY_STAMP=`date +%k`
+# Hour of the day
+HOURLY_STAMP=`date +%k`
+
+# Number of snapshots to keep by type
+MONTHLY=11
+WEEKLY=3
+DAILY=6
+HOURLY=6
+# If you add, always start with the least granular..
+BACKUPS="MONTHLY WEEKLY DAILY HOURLY"
+
+# ------------- system commands used by this script --------------------
+ID=`which id`
+ECHO=`which echo`
+MOUNT=`which mount`
+UMOUNT=`which umount`
+FUSER=/sbin/fuser
+RM=`which rm`
+BC=`which bc`
+MV=`which mv`
+TOUCH=`which touch`
+RSYNC=`which rsync`
+DATE=`date +%m.%Y`
+
+# ------------- the script itself --------------------------------------
+
+# make sure we're running as root
+if [ `$ID -u` != 0 ]
+then
+  $ECHO "Sorry, must be root.  Exiting..."
+  exit 1
+fi
+
+# attempt to fsck the RO mount and mount it as RW; else abort
+# Had some problems with a file system so I want to make sure it doesn't
+# happen again.
+if [ $SEPARATE_MOUNT -ne 0 ]
+then
+  mounted=`mount | grep $SNAPSHOT_RW`
+  if [ "$mounted" != "" ]
+  then
+    $FUSER -k $SNAPSHOT_RW
+    $UMOUNT $SNAPSHOT_RW
+    if [ $? -ne 0 ]
+    then
+      $ECHO "snapshot: could not umount $SNAPSHOT_RW"
+      exit 1
+    fi
+  fi
+  /sbin/fsck -y $MOUNT_DEVICE
+  if [ $? -ne 0 ]
+  then
+    $ECHO "snapshot: had problems fsck\'ing $SNAPSHOT_RW"
+    exit 1
+  fi
+  $MOUNT -o rw $MOUNT_DEVICE $SNAPSHOT_RW
+  if [ $? -ne 0 ]
+  then
+    $ECHO "snapshot: could not mount $SNAPSHOT_RW"
+    exit 1
+  fi
+fi
+
+# Make sure the destination directory exists
+if [ ! -d $DEST ]
+then
+  mkdir -p $DEST
+fi
+
+# This is where we roll up the previous snapshots.  Do it for each snapshot
+# type (hourly, daily etc).
+for BU in $BACKUPS
+do
+  eval max_count=\$$BU  # Maximum to keep
+  eval stamp=\$${BU}_STAMP  # The timestamp for that type
+  oldest_one=`echo $max_count+1 | $BC` # The oldest snapshot if it exists
+
+  # Check for the oldest pre-existing snapshots if they exist
+  if [ -d $DEST/${BU}.0 ]
+  then
+    # If there are, see which is the oldest to roll up
+    current_oldest=`ls -td $DEST/${BU}* | tail -1 | cut -d. -f2`
+  fi
+
+  # Check wether or not to remove the oldest backup or move it to
+  # the next least granular.
+
+  # remove the oldest backup of the least granular type
+  if [ -d $DEST/$BU.$oldest_one -a $HOURLY_STAMP -eq 1 -a $stamp -eq 1 -a "$PREV_BU" = "" ]
+  then
+    $RM -rf $DEST/$BU.$oldest_one
+  fi
+
+  # Roll up the oldest backup to the next least granular.0 if necessary
+  if [ $HOURLY_STAMP -eq 1 -a "$PREV_BU" != "" -a ! -d $DEST/$PREV_BU.0 -a ! -d $DEST/$PREV_BU.1 ] || [ $HOURLY_STAMP -eq 1 -a $stamp -eq 1 -a "$PREV_BU" != ""  -a ! -d $DEST/$PREV_BU.0 ]
+  then
+    if [ "$current_oldest" != "" ]
+    then
+      # Make sure there isn't a pre-existing one which will get in the way
+      if [ -d $DEST/$PREV_BU.0 ]
+      then
+        $RM -rf $DEST/$PREV_BU.0
+      fi
+      $MV $DEST/$BU.$current_oldest $DEST/$PREV_BU.0
+    fi
+  fi
+
+  # Roll up all the rest.  Always do this for hourly snapshots
+  # Only do this for less granular types if the timestamp criteria is met.
+  if [ $HOURLY_STAMP -eq 1 -a $stamp -eq 1 ] || [ $HOURLY_STAMP -eq 1 -a "$BU" = "DAILY" ] || [ "$BU" = "HOURLY" ]
+  then
+    while [ $max_count -ge 0 ]
+    do
+      count_plus=`echo $max_count+1 | $BC`
+      if [ -d $DEST/$BU.$max_count ]
+      then
+        # Make sure you're not moving the newer one into the older ones dir.
+        if [ -d $DEST/$BU.$count_plus ]
+        then
+          $RM -rf $DEST/$BU.$count_plus
+        fi
+        $MV $DEST/$BU.$max_count $DEST/$BU.$count_plus
+      fi
+      max_count=`echo $max_count-1 | $BC`
+    done
+  fi
+  # This is so the next loop knows what the next least granular type is.
+  # This is why the $BU order is important.
+  PREV_BU=$BU
+done
+
+# make a hard-link-only (except for dirs) copy of the latest snapshot,
+# if that exists
+
+# This is the other method of doing the actual snapshots.  The extended
+# rsync options are a bit more clean though.
+
+#if [ -d $DEST/hourly.0 ] ; then			\
+  #$CP -al $DEST/hourly.0 $DEST/hourly.1 \
+#fi
+
+# rsync from the system into the latest snapshot (notice that
+# rsync behaves like cp --remove-destination by default, so the destination
+# is unlinked first.  If it were not so, this would copy over the other
+# snapshot(s) too!
+for dir in $SYNCDIR
+do
+  final_location=`dirname $dir`
+  mkdir -p $DEST/HOURLY.0/$final_location
+  $RSYNC						\
+	-a --delete					\
+	--link-dest=$DEST/HOURLY.1/$final_location 	\
+	$dir $DEST/HOURLY.0/$final_location
+done
+
+# Check to see if the rsync completed correctly
+if [ $? -ne 0 ]
+then
+  $ECHO "$RSYNC error, sync did not complete correctly, aborting"
+  exit 1
+fi
+
+# now remount the RW snapshot mountpoint as readonly
+if [ $SEPARATE_MOUNT -ne 0 ]
+then
+  $MOUNT -o remount,ro $MOUNT_DEVICE $SNAPSHOT_RW
+  if [ $? -ne 0 ]
+  then
+    $ECHO "snapshot: could not remount $SNAPSHOT_RW readonly"
+    exit 1
+  fi
+fi
+
+# Done

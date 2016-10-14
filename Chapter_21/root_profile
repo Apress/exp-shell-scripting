@@ -1,0 +1,28 @@
+
+#
+# root profile segment for root to put the Xauthority values into its
+# environment to be able display x clients
+#
+
+XAUTH=`which xauth`
+MYPPID=`ps -fp $$ | tail -n 1 | awk '{print $3}'`
+MYPPPID=`ps -fp $MYPPID | tail -n 1 | awk '{print $3}'`
+MYID=`ps -fp $MYPPID | tail -n 1 | awk '{print $1}'`
+MYOID=`ps -fp $MYPPPID | tail -n 1 | awk '{print $1}'`
+if [ "$MYID" != "root" ] || [ "$MYOID" != "root" ]
+then
+  for user in $MYID $MYOID
+  do
+    if [ "$user" != "root" ]
+    then
+      MYID=$user
+    fi
+  done
+  MYHOME=`grep "^$MYID:" /etc/passwd | cut -d: -f6`
+  if [ -f $MYHOME/.xauth.$MYID ]
+  then
+    cat $MYHOME/.xauth.$MYID | $XAUTH nmerge -
+    DISPLAY=`cat $MYHOME/.xdisp.$MYID`
+    export DISPLAY
+  fi
+fi

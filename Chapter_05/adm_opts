@@ -1,0 +1,51 @@
+#
+# a function that is sourced into your environment that will
+# perform certain tasks based on the switches it is passed.
+#
+
+jkl () {
+
+  Usage="Usage: \n \
+  \tjkl [-hlkntdx] \n \
+  \t\t[-h] \tThis usage text.\n \
+  \t\t[-l] \tGo to system log directory with ls. \n \
+  \t\t[-k] \tDisplay disk utilization \n \
+  \t\t[-n] \tDisplay network connectivity via less\n \
+  \t\t[-t] \tDisplay top cpu consuming processes \n \
+  \t\t[-d] \tTurn on debug (set -x) information.\n \
+  \t\t[-x] \tTurn off debug (set +x) information.\n"
+  UNAME=`uname -n`
+  DATE=`date '+%y%m'`
+
+  if [ "$#" -lt 1 ]
+  then
+	  echo -e $Usage 
+  fi
+
+  OPTIND=1
+  while getopts hlkntdx ARGS
+  do
+    case $ARGS in
+      l) if [ -d /var/log ] ; then
+           cd /var/log
+           /bin/ls
+         fi
+      ;;
+      k) df -k
+      ;;
+      n) netstat -a | less
+      ;;
+      t) ps -eo user,pid,ppid,pcpu,cmd | sort -rn +3 | head -n 5
+      ;;
+      d) set -x
+      ;;
+      x) set +x
+      ;;
+      h) echo -e $Usage
+      ;;
+      *) echo -e $Usage 
+         #return
+      ;;
+     esac
+  done
+}

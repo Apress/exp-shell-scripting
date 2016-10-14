@@ -1,0 +1,133 @@
+Chapter_03:
+total 12
+-rwxrwxr-x  1 rbpeters 500  665 Oct 24 18:47 epoch_days
+-rwxrwxr-x  1 rbpeters 500 1340 Oct 24 18:48 epoch_seconds
+-rwxrwxr-x  1 rbpeters 500  928 Oct 24 18:49 time2notify
+
+Chapter_05:
+total 12
+-rw-r--r--  1 rbpeters users 1068 Oct 24 19:27 adm_opts
+-rw-r--r--  1 rbpeters users   35 Jan 27 22:19 myapp.sh
+-rw-r--r--  1 rbpeters users 2225 Oct 24 19:30 use_opts
+
+Chapter_07:
+total 8
+-rwx--x--x  1 rbpeters 500 4880 Oct 17 19:22 logwatch
+
+Chapter_08:
+total 12
+-rwxrwxr-x  1 rbpeters   500 1599 Oct 24 19:30 bash_ptree
+-rwxrwxr-x  1 rbpeters users 1709 Oct 24 19:31 ksh_ptree
+-rwxr-xr-x  1 rbpeters users 1570 Oct 24 19:31 sh_ptree
+
+Chapter_13:
+total 4
+lrwxr-xr-x  1 rbpeters users  10 Apr  3  2005 boot_check -> root_check
+-rwxr-xr-x  1 rbpeters users 507 Oct 24 19:32 root_check
+lrwxr-xr-x  1 rbpeters users  10 Apr  3  2005 snap_check -> root_check
+
+Chapter_14:
+total 8
+-rwxr-xr-x  1 rbpeters users 2443 Oct 28 22:48 bash_urlvalidator
+-rwxr-xr-x  1 rbpeters users 2192 Oct 28 22:51 ksh_urlvalidator
+
+Chapter_17:
+total 8
+-rwxr-xr-x  1 rbpeters users 1667 Oct 31 22:08 termserv_info
+-rwxr-xr-x  1 rbpeters users 1098 Oct 31 22:56 xyp_connect
+
+Chapter_18:
+total 16
+-rwxr-xr-x  1 rbpeters users 224 Oct 24 19:39 buildit
+-rwxr-xr-x  1 rbpeters users 238 Oct 24 19:40 killit
+-rwxr-xr-x  1 rbpeters users 222 Oct 24 19:40 readit
+-rwxr-xr-x  1 rbpeters users 731 Oct 24 19:41 timeout
+
+Chapter_19:
+total 4
+-rwxrwxr-x  1 rbpeters 500 1788 Nov  4 22:59 hot_keys
+
+Chapter_20:
+total 4
+-rwxr-xr-x  1 rbpeters users 357 Oct 24 19:43 dircp
+
+Chapter_21:
+total 12
+-rw-r--r--  1 rbpeters users  510 Oct 24 19:44 profile
+-rw-r--r--  1 rbpeters users  715 Oct 24 19:45 root_profile
+-rwxr-xr-x  1 rbpeters users 1205 Oct 24 19:45 throw_ssh_root
+
+Chapter_22:
+total 8
+-rwx--x--x  1 rbpeters 500 2347 Oct 24 19:47 where.sh
+-rwx--x--x  1 rbpeters 500 2014 Oct 24 19:48 window.sh
+
+Chapter_23:
+total 8
+-rwxr-xr-x  1 rbpeters users 1086 Oct 24 19:48 mime_attach
+-rwxr-xr-x  1 rbpeters users  602 Oct 24 19:48 uu_attach
+
+Chapter_27:
+total 8
+-rwxr-xr-x  1 rbpeters users 481 Oct 24 19:52 reverse
+-rwxr-xr-x  1 rbpeters users 506 Oct 24 19:51 reverse2
+
+Chapter_29:
+total 4
+-rwxr-xr-x  1 rbpeters users 320 May 25  2005 auto_ftp
+
+Chapter_30:
+total 8
+-rw-------  1 rbpeters users  826 Jan 12 22:02 00.procmailrc
+-rwx------  1 rbpeters root  1783 Oct 24 19:56 getthisfile
+
+Chapter_31:
+total 8
+-rwxrwxr-x  1 rbpeters 500 6317 Oct 24 19:56 kill_proc
+
+Chapter_32:
+total 4
+-rwxr-xr-x  1 rbpeters users 646 Oct 24 19:57 mon_files
+
+Chapter_34:
+total 4
+-rwxr-xr-x  1 rbpeters users 1050 Oct 24 19:57 rcs_vi
+
+Chapter_35:
+total 4
+-rwxr-xr-x  1 rbpeters users 3696 Oct 24 19:58 sysreport
+
+Chapter_36:
+total 16
+drwxr-xr-x  2 rbpeters users 4096 Jan 13 22:18 canned_messages
+-rwxr-xr-x  1 rbpeters users 7403 Jan 22 21:55 pwaging
+-rwxr-xr-x  1 rbpeters users 1187 Nov 18 22:58 send_email
+
+Chapter_36/canned_messages:
+total 24
+-rw-------  1 rbpeters users 1072 Jan 13 22:15 about_to_expire
+-rw-------  1 rbpeters users 1073 Jan 13 22:15 about_to_expire.regular
+-rw-------  1 rbpeters users  768 Jan 13 22:16 about_to_expire.security
+-rw-------  1 rbpeters users  670 Jan 13 22:17 account_locked
+-rw-------  1 rbpeters users  670 Jan 13 22:17 account_locked.regular
+-rw-------  1 rbpeters users  375 Jan 13 22:17 account_locked.security
+
+Chapter_37:
+total 8
+-rwxrwxr-x  1 rbpeters users 4373 Oct 24 20:05 nis_pwaging
+
+Chapter_38:
+total 8
+-rwxr-xr-x  1 rbpeters users 6757 Oct 24 20:06 gold_build
+
+Chapter_39:
+total 8
+-rwxr-xr-x  1 rbpeters users 7289 Feb 25  2005 system_snapshot
+
+Chapter_41:
+total 4
+-rwxr-xr-x  1 rbpeters users 752 Oct 24 20:08 core_finder
+
+Chapter_42:
+total 4
+-rwxr-xr-x  1 rbpeters users 3283 Feb 21  2005 nic_switch

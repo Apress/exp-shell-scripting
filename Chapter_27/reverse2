@@ -1,0 +1,35 @@
+#!/bin/sh
+
+#
+# Reverse the output of input, either a file or stdin using a single
+# variable to hold the output.
+#
+
+counter=0
+
+populate () {
+  counter=$(($counter+1))
+  eval COUNT${counter}='$LINE'
+}
+
+if [ "$1" != "" ]
+then
+  if [ -f $1 ]
+  then
+    while read LINE
+    do
+	  #populate
+	  reversed_var="$LINE  $reversed_var"
+    done < $1
+  else
+    echo "$1 Does not exist, please try again"
+  fi
+else
+  while read LINE
+  do
+	#populate
+	reversed_var="$LINE  $reversed_var"
+  done
+fi
+
+echo $reversed_var

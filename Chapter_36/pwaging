@@ -1,0 +1,255 @@
+#!/bin/sh
+
+#
+# Track the aging of unchanged passwords on a system.
+#
+
+HOME=/usr/local/pwaging
+# This is the number of days that the users password is valid before being
+# locked.
+VALID_DAYS=90
+# The environment.  This is used to populate the notifications
+ENVIRONMENT="Peterros House"
+# Admin email
+ADMIN_EMAIL=root
+# If debug email is non-null, the shadow file will NOT be updated AND users
+# will NOT be notified.  User notifications will be sent to this debug
+# address.
+DEBUG_EMAIL=
+# The shadow file to use.  Wise to manually run on copies of the real
+# passwd and shadow files.
+shad=/usr/local/pass_aging/bin/shadow_copy
+pswd=/usr/local/pass_aging/bin/passwd_copy
+# The exclude file.  A flat file of a list of usernames that should not be
+# touched.
+exclude="$HOME/config/exclude_list"
+
+ED=ed.script
+max=$VALID_DAYS
+notify=$(($max-14))
+OUTFILE=$HOME/aging
+NOTEOUT=$HOME/notes
+WARNOUT=$HOME/warnings
+REPORT=$HOME/report
+
+ARCHIVE=$HOME/archive
+BIN="$HOME/bin"
+
+if [ "`id -un`" != "root" ]; then
+  echo "This script must be run as root - exiting" >&2
+  exit 1
+fi
+
+#
+# Clean up the old report
+#
+for file in $OUTFILE $WARNOUT $NOTEOUT $REPORT
+do
+  if [ -f $file ]
+  then
+    rm $file
+  fi
+done
+
+#
+# Figure out days since 1/1/1970
+#
+seconds_since_epoch=$((`date +%s`))
+seconds_per_day=86400
+days_since_epoch=$(($seconds_since_epoch/$seconds_per_day))
+
+#
+# backup the $shad file for safety
+#
+backdate=`date +%m%d%y%H%M`
+cp -p $shad $ARCHIVE/shadow.$backdate
+
+#
+# cleanup the archive
+#
+find $ARCHIVE -mtime +7 -exec rm {} \;
+
+
+for user in `cut -d: -f1 $pswd`
+do
+  padding=""
+  user_length=`echo $user | awk '{print length}'`
+  padding_len=$((15-$user_length))
+  counter=1
+  while [ $counter -lt $padding_len ]
+  do
+    padding="${padding} "
+    counter=$(($counter+1))
+  done
+  #
+  # Get some values from the user shadow entry
+  #
+  exp_days=`grep "^${user}:" $shad | cut -d: -f5`
+  pass_days=`grep "^${user}:" $shad | cut -d: -f3`
+  # Depending on whether the encrypted password is in the passwd or 
+  # shadow file, use one of the following lines.
+  #pass_word=`grep "^${user}:" $pswd | cut -d: -f2`
+  pass_word=`grep "^${user}:" $shad | cut -d: -f2`
+
+  if [ "$pass_word" = "*" ]
+  then
+    pass_word="\*"
+  fi
+  exempt=`grep "^${user}$" $exclude`
+  if [ "$pass_word" = "" ]
+  then
+    #
+    # Send warning of null password to outfile
+    #
+    echo "$user $padding WARN:	$user has null password set, set password or lock account" >> $WARNOUT
+  fi
+  #
+  # See if the user is exempt from password expiring
+  #
+  if [ "$exempt" = "" ]
+  then
+    #
+    # Make sure the password has an expiration set.
+    #
+    if [ "$pass_days" != "" -a "$exp_days" != "" ]
+    then
+      #
+      # figure out how many days since the password has changed.
+      #
+      days_since_change=$(($days_since_epoch-$pass_days))
+
+      if [ $days_since_change -lt $notify ]
+      then
+        first_char=`echo $pass_word | cut -c1`
+        #
+        # See if the account is already locked
+        #
+        if [ "$first_char" = "*" ]
+        then
+          echo "$user $padding $days_since_change	Already locked" >> $OUTFILE
+        else
+          #
+          # report user is ok to outfile
+          #
+          echo "$user $padding $days_since_change	OK" >> $OUTFILE
+        fi
+      elif [ $days_since_change -ge $notify -a $days_since_change -le $max ]
+      then
+        #
+        # password will expire in $exp days
+        #
+        exp=$(($max-$days_since_change))
+
+        #
+        # report warning notification to the outfile
+        #
+        if [ "$DEBUG_EMAIL" != "" ]
+        then
+          echo "$user $padding $days_since_change	Expires in $exp days ; Would have sent mail ; sent mail to $DEBUG_EMAIL" >> $OUTFILE
+        else
+          echo "$user $padding $days_since_change	Expires in $exp days ; sending mail" >> $OUTFILE
+        fi
+        #
+        # notify user that password will expire in $exp days. Note: if the
+        # DEBUG_EMAIL is NOT null, notifications will be sent to the
+        # address specified.  If it is null, notifications will be sent
+        # to the specified user.  Note that the send_email script does the
+        # checking for DEBUG as well.
+        #
+        $BIN/send_email $user $days_since_change about_to_expire
+      else
+        #
+        # Set some variables
+        #
+        first_char=`echo $pass_word | cut -c1`
+        echo "User: $user Password: $pass_word  The first character is $first_char"
+        the_date=`date +%y%m%d`
+        CLOSED="*CLOSED_${the_date}*"
+        #
+        # See if the account is already locked
+        #
+        if [ "$first_char" = "*" ]
+        then
+          echo "$user $padding $days_since_change	Already locked" >> $OUTFILE
+        else
+          #
+          # Remove any previously existing ed script
+          #
+          if [ -f $HOME/$ED ]
+          then
+            rm $HOME/$ED
+          fi
+
+          if [ "$DEBUG_EMAIL" != "" ]
+          then
+            echo "$user $padding $days_since_change	Would have locked account ; sent mail to $DEBUG_EMAIL" >> $OUTFILE
+          else
+            #
+            # Write the status for this user to the outfile
+            #
+            echo "$user $padding $days_since_change	Locking account *CLOSED_${the_date}*" >> $OUTFILE
+            #
+            # Make sure the encrypted password can be handled.  a '.' and '/'
+            # are valid characters in that string so make sure they are 
+            # replaced with '\.' and '\/' respectively.
+            #
+            pass_word=`echo $pass_word | sed -e s/\\\./\\\\\\\\./g`
+            pass_word=`echo $pass_word | sed -e s/\\\*/\\\\\\\\*/g`
+            pass_word=`echo $pass_word | sed -e s/\\\$/\\\\\\\\$/g`
+            pass_word=`echo $pass_word | sed -e s/\\\\\//\\\\\\\\\\\//g`
+            #
+            # Cut off the last 2 characters because of the $ sign.
+            #
+            pass_word=`echo $pass_word | sed -e 's/\(.*\)\(.\)\(.\)$/\1/'`
+
+
+            #
+            # Create the ed script that will replace the encrypted password
+            # 
+            echo "/$user:$pass_word/s/$pass_word/$CLOSED" > $HOME/$ED
+            echo "w"                         >> $HOME/$ED
+            echo "q"                         >> $HOME/$ED
+
+            #
+            # Run the ed script that will replace the encrypted password
+            # Change the shadow file to the passwd file if you don't have
+            # a real shadow file and the encrypted password is in the
+            # passwd file
+            # ed -s $pswd < $HOME/$ED > /dev/null
+            ed -s $shad < $HOME/$ED > /dev/null
+  
+          fi
+          #
+          # Send email account locked notification to the user
+          #
+          if [ "$DEBUG_EMAIL" = "" ]
+          then
+            $BIN/send_email $user $days_since_change account_locked
+          fi
+        fi
+      fi
+    else
+      #
+      # Report non-expiring account to the outfile
+      #
+      echo "$user $padding WARN:	$user password not set to expire. Fix shadow entry" >> $WARNOUT
+    fi
+  else
+    #
+    # Report exempt account to the outfile
+    #
+    echo "$user $padding Note:	$user is exempt from password expiring" >> $NOTEOUT
+  fi
+done
+
+for file in $WARNOUT $OUTFILE $NOTEOUT
+do
+  if [ -f $file ]
+  then
+    sort -rn +1 $file >> $REPORT
+    rm $file
+  fi
+done
+
+cat $REPORT | mail -s "$ENVIRONMENT password aging report" $ADMIN_EMAIL
+mv $REPORT $ARCHIVE/report.$backdate

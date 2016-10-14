@@ -1,0 +1,14 @@
+#!/bin/sh
+
+#
+# The main script for backgrounding a timeout value that will perform
+# some task after the timeout has elapsed.
+#
+
+HOMEDIR=$HOME/scripts
+
+$HOMEDIR/killit &
+$HOMEDIR/readit
+ans=$?
+
+echo The return code is: $ans

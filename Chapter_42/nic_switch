@@ -1,0 +1,117 @@
+#!/bin/sh
+#set -x
+
+#
+# nic_switch    This is a script that checks to see if there is connectivity
+#               on the nic and if not, switches the interface to a secondary
+#               nic.  It will also move back.  It is only a failover.  There
+#               is the possibility that if both interfaces are down, it will
+#               bounce back and forth between the two interfaces.
+#
+#               The script logs to the messages file with a similar format
+#               as well as sending a mail message that a switch has been
+#               performed
+
+LOG=/var/log/messages
+PRIMARY=eth0
+SECONDARY=eth1
+ME=`uname -n`
+
+# Will need to modify this for local site
+IP=`grep ${ME}[\ ,\	] /etc/hosts | grep -v '^#' | awk '{print $1}'`
+NETMASK=255.255.255.0
+BROADCAST="`echo $IP | cut -d\. -f1-3`.255"
+
+# using 3 routers on production ring.  modify for local list
+PINGLIST="Need to change these IP addresses for generic..."
+PING_COUNT=2
+# Seconds between network checks
+SLEEPTIME=10
+MAILLIST=sysadmins
+# Fix ping for HP systems
+if [ "`uname | grep -i hp`" != "" ]
+then
+  ping_switch="-n"
+elif [ "`uname | grep -i linux`" != "" ]
+then
+  ping_switch="-c"
+fi
+
+#
+# What is the current nic.  This may need to be validated on your OS.  There
+# may be other values that you'll want to filter out with the egrep.  For
+# instance, on my FreeBSD box, there is a point-to-point interface that I
+# wouldn't want involved and I'd add that here.
+#
+NICS=`netstat -i | awk '{print $1}' | egrep -vi "Kernel|Iface|Name|lo" | sort -u`
+NIC_COUNT=`netstat -i | awk '{print $1}' | egrep -v "Kernel|Iface|Name|lo" | sort -u | wc -l`
+
+if [ $NIC_COUNT -gt 1 ]
+then
+  for nic in $NICS
+  do
+    current=`ifconfig $nic | grep $IP`
+    if [ "$current" != "" ]
+    then
+      CURRENT_NIC=$nic
+    fi
+  done
+else
+  CURRENT_NIC=$NICS
+fi
+
+#
+# If the starting nic is the secondary,
+# reverse vars so the script wont swap
+#
+
+if [ "$CURRENT_NIC" = "$SECONDARY" ]
+then
+  SECONDARY=$PRIMARY
+  PRIMARY=$CURRENT_NIC
+fi
+
+#
+# Main loop for checking if network is
+# available or not
+#
+
+while :
+do
+  sleep $SLEEPTIME
+  answer=""
+  for node in $PINGLIST
+  do
+    if ping $node $ping_switch $PING_COUNT > /dev/null 2>&1
+    then
+      answer="${answer}alive"
+    else
+      answer="${answer}"
+    fi
+  done
+  if [ "$answer" != "" ]
+  then
+    echo network is working...
+	continue
+  else
+
+    # Put an entry in the log file and switch the nics
+    logger -i -t nic_switch -f $LOG "Ping failed on $PINGLIST"
+	logger -i -t nic_switch -f $LOG "Possible nic or switch failure.  Moving $IP from $PRIMARY to $SECONDARY"
+	# The plumb and unplumb work in Solaris and may need to be set for other
+	# OS's.  Your mileage may vary.  FreeBSD uses create and destroy.
+    #ifconfig $PRIMARY unplumb
+    #ifconfig $SECONDARY plumb
+    ifconfig $SECONDARY $IP netmask $NETMASK broadcast $BROADCAST
+	# This may or may not be necessary.  Sometimes the new interface doesn't
+	# start in the up formation.
+    ifconfig $SECONDARY up
+
+    echo "`date +%b\ %d\ %T` $ME nic_switch[$$]: Possible nic or switch failure.  Moving $IP from $PRIMARY to $SECONDARY" | mail -s "Nic failover performed on $ME" $MAILLIST
+
+    # Switch primary and secondary nodes.
+    place_holder=$PRIMARY
+    PRIMARY=$SECONDARY
+    SECONDARY=$place_holder
+  fi
+done

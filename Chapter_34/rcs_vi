@@ -1,0 +1,40 @@
+#!/bin/sh
+#
+# Short script to take care of the ugliness of having to always checkout
+# and check back in a file after editing it.  Of course some basic 
+# assumptions are made:
+#  1.  You have RCS installed
+#  2.  No command line options are supplied to vi (or vim)
+#
+
+# Setup the environment
+CI=/usr/bin/ci
+CO=/usr/bin/co
+TEST=/usr/bin/test
+BASENAME=/bin/basename
+ME=`$BASENAME $0`
+DIRNAME=/usr/bin/dirname
+ALLTHEFILES=$@
+
+# Your renamed vi (or vim) executable
+VI=/usr/bin/vim-rcs
+
+# This list of files that were passed
+for file in $ALLTHEFILES
+do
+  # Get some basic info about the file
+  PATH=`$DIRNAME $file`
+  FILENAME=`$BASENAME $file`
+  $TEST -f "$PATH/RCS/$FILENAME,v" -o -f "$PATH/$FILENAME,v" && $CO -l $file
+  
+    # We still want to edit the file, whether its in RCS or not
+    $VI $file
+
+  # A link to the same script to perform
+  if [ "$ME" = "vir" ]
+  then
+    $TEST ! -f "$PATH/RCS/$FILENAME,v" -o ! -f "$PATH/$FILENAME,v" && $CI -i $file
+  else
+    $TEST -f "$PATH/RCS/$FILENAME,v" -o -f "$PATH/$FILENAME,v" && $CI -u $file
+  fi
+done

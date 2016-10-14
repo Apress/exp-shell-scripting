@@ -1,0 +1,19 @@
+The $ENVIRONMENT UNIX account password for \\"$USERID\\" will expire in $REMAINING day\\(s\\)
+
+=========================================================================
+++ ACTION NEEDS TO BE TAKEN OR YOUR ACCOUNT WILL BE LOCKED IN $REMAINING day\\(s\\)++ 
+=========================================================================
+
+$ENVIRONMENT UNIX passwords must be changed every $VALID_DAYS days. If the password is not changed within $REMAINING day\\(s\\), the account will be locked.
+
+Your account may continue to work after it has been locked if you only access it through r commands \\(rsh, rlogin etc\\).  90 days after the account is locked, it will be removed and you will need to apply for a new one if necessary.
+ 
+Instructions for changing passwords are located at:
+ 
+   http://server.compayny.com/documentation/user_access_info.html
+ 
+If you are unable to change your password or need further assistance, please call the Help Desk.
+ 
+If you no longer need this account, please reply to this message and let us know so we can remove it.
+ 
+System Administration

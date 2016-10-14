@@ -1,0 +1,91 @@
+
+#
+# a function to be sourced into your shell environment that performs
+# various tasks based on the switches it is passed.
+#
+
+APPHOME=/home/rbpeters/scripts/apphome
+
+if [ ! -f $APPHOME/myapp.sh ]
+then
+  echo "Myapp is not installed on this system so jkl is not functional"
+  return 1
+fi
+
+jkl () {
+
+  Usage="Usage: \n \
+  \t$0 [-lf:bmcdxh] \n \
+  \t\t[-h] \tThis usage text.\n \
+  \t\t[-f] \tcat specified file. \n \
+  \t\t[-l] \tGo to application log directory with ls. \n \
+  \t\t[-b] \tGo to application bin directory. \n \
+  \t\t[-c] \tGo to application config directory.\n \
+  \t\t[-m] \tGo to application log directory and more log file.\n \
+  \t\t[-d] \tTurn on debug information.\n \
+  \t\t[-x] \tTurn off debug information.\n"
+  LOG=log
+  CFG=config
+  BIN=bin
+  APPLOG=myapp_log
+  UNAME=`uname -n`
+  DATE=`date '+%y%m'`
+  MYAPP_ID=$APPHOME/myapp.sh
+  ######################################################################
+  major=`egrep "^MAJOR_VER=" $MYAPP_ID | cut -d"=" -f2`
+  minor=`egrep "^MINOR_VER=" $MYAPP_ID | cut -d"=" -f2`
+  dot=`egrep "^DOT_VER=" $MYAPP_ID | cut -d"=" -f2`
+  ######################################################################
+  APPDIR=$APPHOME/myapp.$major.$minor.$dot
+  LOGDIR=$APPHOME/myapp.$major.$minor.$dot/log
+  CFGDIR=$APPHOME/myapp.$major.$minor.$dot/config
+  BINDIR=$APPHOME/myapp.$major.$minor.$dot/bin
+  ######################################################################
+
+  if [ "$#" -lt 1 ]
+  then
+	  echo -e $Usage 
+  fi
+
+  OPTIND=1
+  while getopts lf:bmcdxh ARGS
+  do
+    case $ARGS in
+      l) if [ -d $LOGDIR ] ; then
+           cd $LOGDIR 
+           /bin/ls
+         fi
+      ;;
+      f) FILE=$OPTARG
+         if [ -f $FILE ]
+         then
+           cat $FILE
+         else
+           echo $FILE not found. Please try again.
+         fi
+      ;;
+      b) if [ -d $BINDIR ] ; then
+           cd $BINDIR 
+         fi
+      ;;
+      m) if [ -d $LOGDIR ] ; then
+           cd $LOGDIR
+           /bin/more $APPLOG
+         fi
+      ;;
+      c) if [ -d $CFGDIR ] ; then
+           cd $CFGDIR
+         fi
+      ;;
+      d) set -x
+      ;;
+      x) set +x
+      ;;
+      h) echo -e $Usage
+      ;;
+      *) echo -e $Usage 
+         #return
+      ;;
+     esac
+  done
+}

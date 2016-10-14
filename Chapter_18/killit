@@ -1,0 +1,13 @@
+#!/bin/sh
+
+#
+# Kill the process that is waiting on user interaction if the timeout
+# has been reached
+#
+
+readit_pid=`ps -ef | grep readit | grep -v grep | awk '{print $2}'`
+sleep 3
+if [ "$readit_pid" != "" ]
+then
+  kill -9 $readit_pid
+fi

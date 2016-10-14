@@ -1,0 +1,28 @@
+#!/bin/ksh
+
+#
+# Perform alternate tasks based on how the script is called
+# Use soft links to change the value of $0
+
+whatami=`basename $0`
+
+case $whatami in
+  root_check)
+    fs="/"
+  ;;
+  boot_check)
+    fs="/boot"
+  ;;
+  snap_check)
+    fs="/snapshot"
+  ;;
+  *)
+    echo "Don't know what to do.  Exiting"
+  ;;
+esac
+
+fs_total=`df -k $fs | tail -n 1 | awk '{print $2}'`
+fs_used=`df -k $fs | tail -n 1 | awk '{print $3}'`
+percent_used=$((100*$fs_used/$fs_total))
+
+echo "$fs is at ${percent_used}% capacity"
